@@ -1,0 +1,18 @@
+{
+    "blood" : {"filename" : "blood.jpg", "source" : null},
+    "calbears" : {"filename" : "calbears.png", "source" : "https://freebiesupply.com/logos/cal-golden-bears-logo-2/"},
+    "ucblogo" : {"filename" : "callogo.png", "source" : "https://commons.wikimedia.org/wiki/File:California_Golden_Bears_logo.svg"},
+    "ucbseal" : {"filename" : "ucbseal.png", "source" : null},
+    "hippocampus" : {"filename" : "stainedhippocampus.jpg", "source" : "https://www.tebu-bio.com/blog/2017/11/28/hela-cells-the-first-cell-line/"},
+    "pancreas" : {"filename" : "pancreas.jpg", "source" : "http://www2.victoriacollege.edu/dept/bio/Belltutorials/Histology%20Tutorial/Endocrine%20Lab%20Page/Pancreas.html"},
+    "prostatecancer" : {"filename" : "prostatecancer.jpg", "source" : null},
+    "flourescense" : {"filename" : "flourescense.jpg" , "source" : null},
+    "brain" : {"filename" : "brain.png", "source" : null},
+    "A" : {"filename" : "A.png", "source" : null},
+    "cameraman" : {"filename" : "cameraman.tiff", "source" : "http://scikit-image.org/docs/dev/api/skimage.data.html#skimage.data.camera"},
+    "immunohistochemistry" : {"filename" : "immunohistochemistry.tiff", "source" : "http://scikit-image.org/docs/dev/api/skimage.data.html#skimage.data.immunohistochemistry"},
+    "cat" : {"filename" : "chelsea.tiff", "source" : "http://scikit-image.org/docs/dev/api/skimage.data.html#skimage.data.chelsea"},
+    "checkerboard" : {"filename" : "checkerboard.tiff", "source" : "http://scikit-image.org/docs/dev/api/skimage.data.html#skimage.data.checkerboard"},
+    "coffee" : {"filename" : "coffee.tiff", "source" : "http://scikit-image.org/docs/dev/api/skimage.data.html#skimage.data.coffee"},
+    "brainstrip": {"filename": "brainstrip.jpg", "source": "Zack Phillips / Waller Lab"}
+}
