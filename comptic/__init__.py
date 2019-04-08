@@ -1,5 +1,5 @@
 from . import prop
-from . import pupil
+from . import imaging
 from . import wotf
 from . import ledarray
 from . import noise
@@ -8,3 +8,4 @@ from . import simulation
 from . import transformation
 from . import error
 from . import camera
+from . import containers

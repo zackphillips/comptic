@@ -16,13 +16,8 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 from tifffile import imsave
 import numpy as np
 import json, datetime, glob, tifffile, os, copy
-from scipy import io as sio
 from llops.display import objToString, Color
-from llops.display import ImageIterationPlot, NaPlot
-from libwallerlab.utilities.camera import demosaic
 import llops as yp
-
-from libwallerlab.utilities.metadata import Metadata, Reconstructions
 
 VERSION = 0.3
 
@@ -135,6 +130,9 @@ class Dataset():
         self.median_filter_threshold = median_filter_threshold
         self.use_median_filter = use_median_filter
 
+        # Initialize frame state container
+        self.frame_state_container = None
+
         # Load dataset information if path is provided
         if self.directory is not None:
 
@@ -184,6 +182,7 @@ class Dataset():
 
     @property
     def frame_shape(self):
+        """Returns dimensions of each frame in dataset."""
         if any([frame is not None for frame in self._frame_list]):
             frame_shape = list(yp.shape([frame for frame in self._frame_list if frame is not None][0]))
 
@@ -205,6 +204,7 @@ class Dataset():
 
     @property
     def frame_mask(self):
+        """Returns a list of current frames which are to be used."""
         if self._frame_mask is not None:
             return self._frame_mask
         else:
@@ -212,26 +212,27 @@ class Dataset():
 
     @frame_mask.setter
     def frame_mask(self, new_frame_mask):
+        """Sets the current frame last. Input should be a list."""
         self._frame_mask = new_frame_mask
 
     @property
     def frame_mask_full(self):
-        return list(range(len(self._frame_state_list)))
+        """Returns list of all possible frame numbers in the dataset."""
+        return list(range(len(self._frame_list)))
 
     @property
     def shape(self):
+        """Returns the shape of the dataset. First dimension is the number of elements in .frame_list, all other elements are the shape of each frame."""
         return tuple([len(self.frame_mask)] + list(self.frame_shape))
 
     @property
-    def type(self):
-        return self.metadata.type
-
-    @type.setter
-    def type(self, new_type):
-        self.metadata.type = new_type
+    def frame_count(self):
+        """Returns the number of frames in thhe dataset."""
+        return len(self)
 
     @property
     def frame_list(self):
+        """Returns a list of frames in the dataset. Also loads each frame as required."""
         # Select subset of frame list if defined
 
         # Ensure all frames are populated
@@ -251,23 +252,24 @@ class Dataset():
 
     @frame_list.setter
     def frame_list(self, new_frame_list):
-        if self._frame_list:
-            if self.frame_mask is not None:
-                for index, frame_index in enumerate(self.frame_mask):
-                    self._frame_list[frame_index] = yp.dcopy(new_frame_list[index])
-            else:
-                for i in range(len(new_frame_list)):
-                    self._frame_list[i] = yp.dcopy(new_frame_list[i])
+        """Allows assigning frames in the dataset."""
+
+        # Generate frame list if it doesn't already exist
+        if not self._frame_list:
+            self._frame_list = [None] * len(new_frame_list)
+            self._frame_mask_full = list(range(len(new_frame_list)))
+
+        # Assign new frames
+        if self._frame_mask is not None:
+            for index, frame_index in enumerate(self.frame_mask):
+                self._frame_list[frame_index] = yp.dcopy(new_frame_list[index])
         else:
-            self._frame_list = []
-            if new_frame_list is not None:
-                for i in range(len(new_frame_list)):
-                    self._frame_list.append(yp.dcopy(new_frame_list[i]))
-            else:
-                self._frame_list = None
+            for i in range(len(new_frame_list)):
+                self._frame_list[i] = yp.dcopy(new_frame_list[i])
 
     @property
     def frame_state_list(self):
+        """Returns a list of frame states, which is a free-form variable which is typically over-ridden."""
         if self.frame_mask is not None:
             return [self._frame_state_list[i] for i in self.frame_mask]
         else:
@@ -275,6 +277,7 @@ class Dataset():
 
     @frame_state_list.setter
     def frame_state_list(self, new_frame_state_list):
+        """Returns a list of frame states, which is a free-form variable which is typically over-ridden."""
         if self._frame_state_list:
             if self.frame_mask is not None:
                 for i in self.frame_mask:
@@ -297,35 +300,10 @@ class Dataset():
 
     def clearMask(self):
         """Clear frame mask (set to default)."""
-        q = Color.YELLOW
         self.frame_mask = list(range(len(self._frame_list)))
 
-
-    # def __str__(self):
-    #     """
-    #     A robust, nice printer for dataset parameters
-    #     """
-    #     str_to_print = "\n                +------------------+\n\
-    #            /                  /|\n\
-    #           / %s/ |\n\
-    #          /                  /  |\n\
-    #         +------------------+   |\n\
-    #         |      %s|   |\n\
-    #         |                  |   |\n\
-    #         |                  |   +\n\
-    #         | %s     |  /\n\
-    #         |                  | /\n\
-    #         |    Data Shape    |/\n\
-    #         +------------------+\n " % ('{message: <{fill}}'.format(message=Color.YELLOW + "# Images = " + str(self.frame_list.shape[0]) + Color.END, fill='15'),
-    #                                     '{message: <{fill}}'.format(
-    #                                         message=Color.YELLOW + "N = " + str(self.frame_list.shape[2]) + Color.END, fill='15'),
-    #                                     '{message: <{fill}}'.format(message=Color.YELLOW + "M = " + str(self.frame_list.shape[1]) + Color.END, fill='15'))
-    #
-    #     str_to_print = str_to_print + '\n' + Color.BOLD + \
-    #         Color.RED + "Metadata:\n" + Color.END + str(self.metadata)
-    #     return(str_to_print)
-
-    def save(self, dataset_path=None, header=None, tif_compression=0, metadata_only=False, precision=6, bit_depth=16):
+    def save(self, dataset_path=None, header=None, tif_compression=0,
+                   metadata_only=False, precision=6, bit_depth=16):
         """
         This is the workhorse save function for all data types. It will be modified as needed
         """
@@ -686,7 +664,7 @@ class Dataset():
         # Set frame_list to list of None values (for now)
         self._frame_list = [None] * len(frame_state_list)
 
-    def showIllum(self, colormap='gray', figsize=(5, 5), figaspect="wide", show_fourier=False):
+    def showIllum(self, cmap='gray', figsize=(5, 5), figaspect="wide", show_fourier=False):
         from matplotlib import pyplot as plt
         from matplotlib.widgets import Slider
         fig, ax = plt.subplots(1, 1, figsize=figsize)
@@ -714,13 +692,12 @@ class Dataset():
         plt.tight_layout()
         return slider
 
-    def show(self, hardware_element=None, colormap='gray', figsize=(10,4), figaspect="wide",
+    def show(self, hardware_element=None, cmap='gray', figsize=(10,4), figaspect="wide",
              show_fourier=False, hide_sliders=False, show_iteration_plot=False,
              images_only=False, hw_type=None):
 
         from matplotlib.widgets import Slider
         from matplotlib import pyplot as plt
-        from .display import ImagePlot, NaPlot, PositionPlot
 
         device_list_0 = [self.metadata.illumination,
                          self.metadata.position,
@@ -759,32 +736,37 @@ class Dataset():
             self.plot_list.append(ImageIterationPlot(axis_list[axis_index], self.frame_list))
             axis_index += 1
 
-        for device in device_list:
-            if device.__class__.__name__ is "Camera":
-                self.plot_list.append(ImagePlot(axis_list[axis_index],
-                                                             self.frame_list,
-                                                             colormap=colormap,
-                                                             pixel_size_um=self.metadata.system.eff_pixel_size_um,
-                                                             roi=self.metadata.camera.roi))
-                axis_index += 1
-
-            elif device.__class__.__name__  is "Illumination" and not images_only:
-
-                self.plot_list.append(NaPlot(axis_list[axis_index], self.frame_state_list,
-                                                          np.asarray(self.metadata.illumination.state_list.design),
-                                                          objective_na=self.metadata.objective.na))
-                axis_index += 1
-
-            elif device.__class__.__name__  is "Position" and not images_only:
-                self.plot_list.append(PositionPlot(axis_list[axis_index], self.frame_state_list, pixel_size_um=self.metadata.system.eff_pixel_size_um))
-                axis_index += 1
-
-            elif device.__class__.__name__  is "Focus" and not images_only:
-                raise NotImplementedError
-
-            elif device.__class__.__name__  is "Pupil" and not images_only:
-
-                raise NotImplementedError
+        self.plot_list.append(ImagePlot(axis_list[axis_index],
+                                        self.frame_list,
+                                        cmap=cmap,
+                                        pixel_size_um=self.metadata.system.eff_pixel_size_um))
+        axis_index += 1
+        # for device in device_list:
+        #     if device.__class__.__name__ is "Camera":
+        #         self.plot_list.append(ImagePlot(axis_list[axis_index],
+        #                                         self.frame_list,
+        #                                         cmap=cmap,
+        #                                         pixel_size_um=self.metadata.system.eff_pixel_size_um,
+        #                                         roi=self.metadata.camera.roi))
+        #         axis_index += 1
+        #
+        #     elif device.__class__.__name__  is "Illumination" and not images_only:
+        #
+        #         self.plot_list.append(NaPlot(axis_list[axis_index], self.frame_state_list,
+        #                                                   np.asarray(self.metadata.illumination.state_list.design),
+        #                                                   objective_na=self.metadata.objective.na))
+        #         axis_index += 1
+        #
+        #     elif device.__class__.__name__  is "Position" and not images_only:
+        #         self.plot_list.append(PositionPlot(axis_list[axis_index], self.frame_state_list, pixel_size_um=self.metadata.system.eff_pixel_size_um))
+        #         axis_index += 1
+        #
+        #     elif device.__class__.__name__  is "Focus" and not images_only:
+        #         raise NotImplementedError
+        #
+        #     elif device.__class__.__name__  is "Pupil" and not images_only:
+        #
+        #         raise NotImplementedError
 
         def update(val):
             frame_index = int(val)
@@ -815,27 +797,21 @@ class Dataset():
 
         # Add slider
         ax_slider = plt.axes([0.25, 0.01, 0.65, 0.03])
-        slider = Slider(ax_slider, 'Frame Index', 0, len(self.frame_state_list), valinit=frame_index, valfmt='%d')
+        slider = Slider(ax_slider, 'Frame', 0, self.frame_count, valinit=frame_index, valfmt='%d')
         slider.on_changed(update)
-
-        if not images_only:
-            ax_slider_illum = plt.axes([0.25, 0.08, 0.65, 0.03])
-            slider_illum = Slider(ax_slider_illum, 'Interframe Index', 0, len(self.frame_state_list[frame_index]['illumination']['states']), valinit=0, valfmt='%d')
-            slider_illum.on_changed(updateInterFrame)
-        else:
-            slider_illum = None
 
         if hide_sliders:
             slider.ax.set_axis_off()
-            slider_illum.ax.set_axis_off()
 
-        def frame_update_function_handle(frame_index): return update(frame_index)
+        def frame_update_function_handle(frame_index):
+            return update(frame_index)
 
-        def interframe_update_function_handle(interframe_index): return updateInterFrame(interframe_index)
+        def interframe_update_function_handle(interframe_index):
+            return updateInterFrame(interframe_index)
 
         plt.show()
 
-        return(fig, slider, slider_illum, frame_update_function_handle, interframe_update_function_handle)
+        return(fig, slider, frame_update_function_handle, interframe_update_function_handle)
 
     # Background subtracton
     def subtractBackground(self, plot_bg=False, force_subtraction=False, new_roi=False, max_thresh=None):
@@ -1042,12 +1018,12 @@ def cartToNa(point_list_cart, z_offset=0):
     return(result)
 
 
-def saveImageStack(filename, img, clim=None, bit_depth=8, colormap=None):
+def saveImageStack(filename, img, clim=None, bit_depth=8, cmap=None):
     from matplotlib.pyplot import get_cmap
     assert bit_depth == 8 or bit_depth == 16, "saveImageStack only handles 8-bit and 16-bit images!"
-    if colormap is not None:
+    if cmap is not None:
         bit_depth = 8
-        cmap = get_cmap(colormap)
+        cmap = get_cmap(cmap)
     if clim is None:
         img_tiff = img - img.min()
         img_tiff /= img_tiff.max()
@@ -1060,7 +1036,7 @@ def saveImageStack(filename, img, clim=None, bit_depth=8, colormap=None):
         print('clim should be a tuple of length 2, i.e. (lowest_value,highest_value)!')
         raise
     img_tiff *= 2**bit_depth - 1
-    if colormap is None:
+    if cmap is None:
         if bit_depth == 8:
             img_tiff = img_tiff.astype('uint8')
         elif bit_depth == 16:
@@ -1070,7 +1046,7 @@ def saveImageStack(filename, img, clim=None, bit_depth=8, colormap=None):
         elif len(img.shape) == 3:
             imsave(filename, img_tiff[:, np.newaxis, :, :])
     else:
-        assert bit_depth == 8, 'colormap only support 8-bit images!'
+        assert bit_depth == 8, 'cmap only support 8-bit images!'
         img_tiff = cmap(img_tiff.astype('uint8'))
         img_tiff *= 2**bit_depth - 1
         img_tiff = img_tiff.astype('uint8')
@@ -1358,553 +1334,232 @@ def removeBackground(frame, background=None, max_thresh=None, roi=None):
     return frame
 
 
-class MotionDeblurFunctions():
+class ImageIterationPlot():
+    def __init__(self, ax, frame_list, max_value=65535):
+        index=np.arange(1)
+        self.frame_list = frame_list
+        self.mean_plot, = ax.plot(index, np.mean(np.mean(frame_list[index, :, :],axis=1),axis=1), c='y', label='Mean')
+        self.max_plot, = ax.plot(index, np.max(np.max(frame_list[index, :, :],axis=1),axis=1), c='b', label='Max')
+        # self.mean_plot.set_xlim([0, frame_list.shape[0]])
+        ax.set_xlim([1, yp.shape(frame_list)[0]])
+        ax.set_ylim([0, max_value])
+        ax.set_title('Frame Mean and Max')
 
-    def __init__(self, dataset):
-        """This class implements motion-deblur specific changes and fixes."""
-        self.dataset = dataset
+        ax.legend()
 
-        # Whether to skip first frame in a segment
-        self.skip_first_frame_segment = False
+        ax.set_xlabel('Frame Number')
 
-        # Apply fixes for old datasets
-        if hasattr(self.dataset, 'version'):
-            if self.dataset.version < 1.0:
+    def update(self, frame_index):
+        index = np.arange(frame_index + 1)
+        self.mean_plot.set_xdata(index+1)
+        self.mean_plot.set_ydata(np.mean(np.mean(self.frame_list[index, :, :], axis=1),axis=1))
+        self.max_plot.set_xdata(index+1)
+        self.max_plot.set_ydata(np.max(np.max(self.frame_list[index,:,:],axis=1),axis=1))
 
-                self.fixOldMdDatasets()
 
-                if self.dataset.metadata.type == 'stop and stare':
-                    self.dataset.frame_state_list = list(reversed(self.dataset.frame_state_list))
 
-    def fixOldMdDatasets(self):
-        # Expand frame_state_list
-        self.expandFrameStateList(self.dataset.frame_state_list, position_units='mm')
+class NaPlot():
+    def __init__(self, ax, frame_state_list, source_list_na, objective_na=None,
+                 show_background=True, background_color='k', foreground_color='y',
+                 use_slider=True, marker_size=15, normalize_color=True, flip_y_axis=True,
+                 color_names = ('r', 'g', 'b')):
 
-        # Fix frame state list
-        self.fixFrameStateList(self.dataset.frame_state_list)
+        from matplotlib import pyplot as plt
+        self.frame_state_list = frame_state_list
+        self.source_list_na = source_list_na
 
-        # Flip position coordinates
-        self.flipPositionCoordinates(x=True)
+        frame_led_list = []
+        frame_led_color_list = []
 
-    @property
-    def frame_segment_list(self):
-        """Calculates and returns position segment indicies of each frame."""
-        position_segment_indicies = []
-        for frame_state in self.dataset.frame_state_list:
-            position_segment_indicies.append(frame_state['position']['common']['linear_segment_index'])
-
-        return position_segment_indicies
-
-    @property
-    def frame_segment_direction_list(self):
-        """Calculates and returns position segment indicies of each frame."""
-
-        # Determine the direction of individual segments
-        segment_direction_list = []
-        segment_list = sorted(yp.unique(self.frame_segment_list))
-
-        # Store previous position segment indicies
-        frame_mask_old = self.dataset.frame_mask
-
-        # Loop over segments
-        for segment_index in segment_list:
-
-            # Set positon segment index
-            self.dataset.motiondeblur.position_segment_indicies = [segment_index]
-
-            # Get start position of first frame in segment
-            x_start = self.dataset.frame_state_list[0]['position']['states'][0][0]['value']['x']
-            y_start = self.dataset.frame_state_list[0]['position']['states'][0][0]['value']['y']
-
-            # Get start position of last frame in segment
-            x_end = self.dataset.frame_state_list[-1]['position']['states'][-1][0]['value']['x']
-            y_end = self.dataset.frame_state_list[-1]['position']['states'][-1][0]['value']['y']
-
-            vector = np.asarray(((y_end - y_start), (x_end - x_start)))
-            vector /= np.linalg.norm(vector)
-
-            # Append segment direction vector to list
-            segment_direction_list.append(vector.tolist())
-
-        # Reset position segment indicies
-        self.dataset.frame_mask = frame_mask_old
-
-        # Expand to frame basis
-        frame_segment_direction_list = []
-        for frame_index in range(self.dataset.shape[0]):
-            # Get segment index
-            segment_index = self.frame_segment_list[frame_index] - min(self.frame_segment_list)
-
-            # Get segment direction
-            segment_direction = segment_direction_list[segment_index]
-
-            # Append to list
-            frame_segment_direction_list.append(segment_direction)
-
-        return frame_segment_direction_list
-
-    def expandFrameStateList(self, frame_state_list, position_units='mm'):
-        """ This function expands redundant information in the frame_state_list of a dataset (specific to motion deblur datasets for now)"""
-
-        # Store first frame as a datum
-        frame_state_0 = frame_state_list[0]
-
-        # Loop over frame states
+        # Loop over all frames to generate led_color_list
         for frame_state in frame_state_list:
+            for led_pattern in frame_state['illumination']['states']:
+                for led in led_pattern:
+                    frame_led_list.append(led["index"])
+                    color = [0, 0, 0]
+                    for color_index, color_name in enumerate(color_names):
+                        if color_name in led['value']:
+                            color[color_index] = led["value"][color_name]
 
-            # Fill in illumination and position if this frame state is compressed
-            if type(frame_state['illumination']) is str:
-                frame_state['illumination'] = copy.deepcopy(frame_state_0['illumination'])
+                    if max(color) > 1 and normalize_color:
+                        color[0] /= max(color)
+                        color[1] /= max(color)
+                        color[2] /= max(color)
 
-                # Deterime direction of scan
-                dx0 = frame_state['position']['states'][-1][0]['value']['x'] - frame_state['position']['states'][0][0]['value']['x']
-                dy0 = frame_state['position']['states'][-1][0]['value']['y'] - frame_state['position']['states'][0][0]['value']['y']
-                direction = np.asarray((dy0, dx0))
-                direction /= np.linalg.norm(direction)
+                frame_led_color_list.append(color)
 
-                # Get frame spacing
-                spacing = frame_state['position']['common']['velocity'] * frame_state['position']['common']['led_update_rate_us'] / 1e6
-                dy = direction[0] * spacing
-                dx = direction[1] * spacing
-
-                # Assign new positions in state_list
-                states_new = []
-                for state_index in range(len(frame_state_0['position']['states'])):
-                    state = copy.deepcopy(frame_state['position']['states'][0])
-                    state[0]['time_index'] = state_index
-                    state[0]['value']['x'] += dx * state_index
-                    state[0]['value']['y'] += dy * state_index
-                    state[0]['value']['units'] = position_units
-                    states_new.append(state)
-
-                frame_state['position']['states'] = states_new
-
-    def fixFrameStateList(self, frame_state_list, major_axis='y'):
-        """Catch-all function for various hacks and dataset incompatabilities."""
-        axis_coordinate_list = []
-        # Loop over frame states
-        for frame_state in frame_state_list:
-            # Check if this state is a shallow copy of the first frame
-            if id(frame_state['illumination']) is not id(self.dataset._frame_state_list[0]['illumination']):
-
-                # Check if position is in the correct format (some stop and stare datasets will break this)
-                if type(frame_state['position']) is list:
-
-                    # Fix up positions
-                    frame_state['position'] = {'states': frame_state['position']}
-                    frame_state['position']['common'] = {'linear_segment_index': 0}
-
-                    # Fix up illumination
-                    frame_state['illumination'] = {'states': frame_state['illumination']}
-
-                # Add linear segment indicies if these do not already exist
-                frame_axis_coordinate = frame_state['position']['states'][0][0]['value'][major_axis]
-                if frame_axis_coordinate not in axis_coordinate_list:
-                    axis_coordinate_list.append(frame_axis_coordinate)
-                    position_segment_index = len(axis_coordinate_list) - 1
-                else:
-                    position_segment_index = axis_coordinate_list.index(frame_axis_coordinate)
-
-                # position_segment_indicies.append(position_segment_index)
-                frame_state['position']['common']['linear_segment_index'] = position_segment_index
-            else:
-                print('Ignoring state.')
-
-    def flipPositionCoordinates(self, x=False, y=False):
-        for frame_state in self.dataset._frame_state_list:
-            # Check if this state is a shallow copy of the first frame
-            if id(frame_state) is not id(self.dataset._frame_state_list[0]):
-                for state in frame_state['position']['states']:
-                    for substate in state:
-                        if x:
-                            substate['value']['x'] *= -1
-                        if y:
-                            substate['value']['y'] *= -1
-            else:
-                print('Ignoring state.')
-
-    def flipIlluminationSequence(self):
-        for frame_state in self.dataset._frame_state_list:
-            frame_state['illumination']['states'] = list(reversed(frame_state['illumination']['states']))
-
-    def blur_vectors(self, dtype=None, backend=None, debug=False,
-                     use_phase_ramp=False, corrections={}):
-        """
-        This function generates the object size, image size, and blur kernels from
-        a libwallerlab dataset object.
-
-            Args:
-                dataset: An io.Dataset object
-                dtype [np.float32]: Which datatype to use for kernel generation (All numpy datatypes supported)
-            Returns:
-                object_size: The object size this dataset can recover
-                image_size: The computed image size of the dataset
-                blur_kernel_list: A dictionary of blur kernels lists, one key per color channel.
-
-        """
-        # Assign dataset
-        dataset = self.dataset
-
-        # Get corrections from metadata
-        if len(corrections) is 0 and 'blur_vector' in self.dataset.metadata.calibration:
-            corrections = dataset.metadata.calibration['blur_vector']
-
-        # Get datatype and backends
-        dtype = dtype if dtype is not None else yp.config.default_dtype
-        backend = backend if backend is not None else yp.config.default_backend
-
-        # Calculate effective pixel size if necessaey
-        if dataset.metadata.system.eff_pixel_size_um is None:
-            dataset.metadata.system.eff_pixel_size_um = dataset.metadata.camera.pixel_size_um / \
-                (dataset.metadata.objective.mag * dataset.metadata.system.mag)
-
-        # Recover and store position and illumination list
-        blur_vector_roi_list = []
-        position_list, illumination_list = [], []
-        frame_segment_map = []
-
-        for frame_index in range(len(dataset.frame_mask)):
-            frame_state = copy.deepcopy(dataset.frame_state_list[frame_index])
-
-            # Store which segment this measurement uses
-            frame_segment_map.append(frame_state['position']['common']['linear_segment_index'])
-
-            # Extract list of illumination values for each time point
-            if 'illumination' in frame_state:
-                illumination_list_frame = []
-                for time_point in frame_state['illumination']['states']:
-                    illumination_list_time_point = []
-                    for illumination in time_point:
-                        illumination_list_time_point.append(
-                            {'index': illumination['index'], 'value': illumination['value']})
-                    illumination_list_frame.append(illumination_list_time_point)
-
-            else:
-                raise ValueError('Frame %d does not contain illumination information' % frame_index)
-
-            # Extract list of positions for each time point
-            if 'position' in frame_state:
-                position_list_frame = []
-                for time_point in frame_state['position']['states']:
-                    position_list_time_point = []
-                    for position in time_point:
-                        if 'units' in position['value']:
-                            if position['value']['units'] == 'mm':
-                                ps_um = dataset.metadata.system.eff_pixel_size_um
-                                position_list_time_point.append(
-                                    [1000 * position['value']['y'] / ps_um, 1000 * position['value']['x'] / ps_um])
-                            elif position['value']['units'] == 'um':
-                                position_list_time_point.append(
-                                    [position['value']['y'] / ps_um, position['value']['x'] / ps_um])
-                            elif position['value']['units'] == 'pixels':
-                                position_list_time_point.append([position['value']['y'], position['value']['x']])
-                            else:
-                                raise ValueError('Invalid units %s for position in frame %d' %
-                                                 (position['value']['units'], frame_index))
-                        else:
-                            # print('WARNING: Could not find posiiton units in metadata, assuming mm')
-                            ps_um = dataset.metadata.system.eff_pixel_size_um
-                            position_list_time_point.append(
-                                [1000 * position['value']['y'] / ps_um, 1000 * position['value']['x'] / ps_um])
-
-                    position_list_frame.append(position_list_time_point[0])  # Assuming single time point for now.
-
-                # Define positions and position indicies used
-                positions_used, position_indicies_used = [], []
-                for index, pos in enumerate(position_list_frame):
-                    for color in illumination_list_frame[index][0]['value']:
-                        if any([illumination_list_frame[index][0]['value'][color] > 0 for color in illumination_list_frame[index][0]['value']]):
-                            position_indicies_used.append(index)
-                            positions_used.append(pos)
-
-                # Generate ROI for this blur vector
-                from libwallerlab.projects.motiondeblur.blurkernel import getPositionListBoundingBox
-                blur_vector_roi = getPositionListBoundingBox(positions_used)
-
-                # Append to list
-                blur_vector_roi_list.append(blur_vector_roi)
-
-                # Crop illumination list to values within the support used
-                illumination_list.append([illumination_list_frame[index] for index in range(min(position_indicies_used), max(position_indicies_used) + 1)])
-
-                # Store corresponding positions
-                position_list.append(positions_used)
-
-        # Apply kernel scaling or compression if necessary
-        if 'scale' in corrections:
-
-            # We need to use phase-ramp based kernel generation if we modify the positions
-            use_phase_ramp = True
-
-            # Modify position list
-            for index in range(len(position_list)):
-                _positions = np.asarray(position_list[index])
-                for scale_correction in corrections['scale']:
-                    factor, axis = corrections['scale']['factor'], corrections['scale']['axis']
-                    _positions[:, axis] = ((_positions[:, axis] - yp.min(_positions[:, axis])) * factor + yp.min(_positions[:, axis]))
-                position_list[index] = _positions.tolist()
-
-        # Synthesize blur vectors
-        blur_vector_list = []
-        for frame_index in range(dataset.shape[0]):
-            #  Generate blur vectors
-            if use_phase_ramp:
-                import ndoperators as ops
-                kernel_shape = [yp.fft.next_fast_len(max(sh, 1)) for sh in blur_vector_roi_list[frame_index].shape]
-                offset = yp.cast([sh // 2 + st for (sh, st) in zip(kernel_shape, blur_vector_roi_list[frame_index].start)], 'complex32', dataset.backend)
-
-                # Create phase ramp and calculate offset
-                R = ops.PhaseRamp(kernel_shape, dtype='complex32', backend=dataset.backend)
-
-                # Generate blur vector
-                blur_vector = yp.zeros(R.M, dtype='complex32', backend=dataset.backend)
-                for pos, illum in zip(position_list[frame_index], illumination_list[frame_index]):
-                    pos = yp.cast(pos, dtype=dataset.dtype, backend=dataset.backend)
-                    blur_vector += (R * (yp.cast(pos - offset, 'complex32')))
-
-                # Take inverse Fourier Transform
-                blur_vector = (yp.abs(yp.cast(yp.iFt(blur_vector)), 0.0))
-
-            else:
-                blur_vector = yp.asarray([illum[0]['value']['w'] for illum in illumination_list[frame_index]],
-                                         dtype=dtype, backend=backend)
-
-            # Normalize illuminaiton vectors
-            blur_vector /= yp.scalar(yp.sum(blur_vector))
-
-            # Append to list
-            blur_vector_list.append(blur_vector)
-
-        # Return
-        return blur_vector_list, blur_vector_roi_list
-
-    @property
-    def roi_list(self):
-
-        # Get blur vectors and ROIs
-        blur_vector_list, blur_vector_roi_list = self.blur_vectors()
-
-        # Generate measurement ROIs
-        roi_list = []
-        for index, (blur_vector, blur_roi) in enumerate(zip(blur_vector_list, blur_vector_roi_list)):
-            # Determine ROI start from blur vector ROI
-            convolution_support_start = [kernel_center - sh // 2 for (kernel_center, sh) in zip(blur_roi.center, self.dataset.frame_shape)]
-
-            # Generate ROI
-            roi_list.append(yp.Roi(start=convolution_support_start, shape=self.dataset.frame_shape))
-
-        return roi_list
-
-    @property
-    def position_segment_indicies(self):
-        """Returns all segment indicies which are currently used (one per segment, NOT one per frame)."""
-        if self._position_segment_indicies:
-            # Return saved position_segment_indicies
-            return self._position_segment_indicies
+        if show_background:
+            # Background plot, containing all LEDs
+            self.background_plot = ax.scatter(source_list_na[:, 0], source_list_na[:, 1], s=marker_size, alpha=0.5, c=background_color)
         else:
-            # Determine which position segment indicies are in this dataset
-            position_segment_indicies = []
-            for frame_state in self.dataset.frame_state_list:
-                if frame_state['position']['common']['linear_segment_index'] not in position_segment_indicies:
-                    position_segment_indicies.append(frame_state['position']['common']['linear_segment_index'])
+            self.background_plot = None
 
-            # Return these indicies
-            return position_segment_indicies
+        # Foreground plot, containing LEDs from current frame
+        if use_slider:
+            self.foreground_plot = ax.scatter(source_list_na[frame_led_list, 0],
+                                              source_list_na[frame_led_list, 1], c=frame_led_color_list, s=marker_size)
 
-    @position_segment_indicies.setter
-    def position_segment_indicies(self, new_position_segment_indicies):
+        ax.set_title("LED Illumination")
+        ax.set_xlabel("$NA_x$")
+        ax.set_ylabel("$NA_y$")
 
-        # Ensure the input is of resonable type
-        assert type(new_position_segment_indicies) in (tuple, list)
+        ax_lim = 1.1 * np.max(np.abs(source_list_na))
+        if ax_lim == 0.0:
+            ax_lim = 0.1
 
-        # Check that all elements are within the number of frames
-        assert all([index in self.position_segment_indicies_full for index in new_position_segment_indicies])
+        ax.set_xlim(xmin=-ax_lim, xmax=ax_lim)
+        ax.set_ylim(ymin=-ax_lim, ymax=ax_lim)
+        # ax.set_aspect(1.)
 
-        # Set new position_segment_index
-        self._position_segment_indicies = new_position_segment_indicies
+        if objective_na is not None:
+            circle1 = plt.Circle((0, 0), objective_na, edgecolor='r', fill=False, lw=1)
+            ax.add_artist(circle1)
 
-        # Update frame_mask to reflect this list
-        frame_subset = []
-        first_frame_is_skipped = not self.skip_first_frame_segment
-        for position_segment_index in new_position_segment_indicies:
-            for index, frame_state in enumerate(self.dataset._frame_state_list):
-                if frame_state['position']['common']['linear_segment_index'] == position_segment_index:
-                    if not first_frame_is_skipped:
-                        first_frame_is_skipped = True
+    def update(self, frame_index, subframe_time_index=0):
+        frame_index = int(frame_index)
+        illumination_index = int(subframe_time_index)
+
+        pattern_led_list = []
+        pattern_led_color_list = []
+
+        # Get illumination pattern for this frame and illumination index
+        led_pattern = self.frame_state_list[frame_index]['illumination'][illumination_index]
+
+        for led in led_pattern:
+            pattern_led_list.append(led["index"])
+            color_dict = {'r' : 0,'g' : 0, 'b' : 0}
+
+            # Grab RGB color values
+            for led_color in led['value']:
+                if led_color in color_dict:
+                    color_dict[led_color] = led['value'][led_color]
+
+            # Deal with the case that illumnination is not normalized (0 to 1)
+            if max(list(color_dict.values())) > 1:
+                color_dict['r'] /= max(list(color_dict.values()))
+                color_dict['g'] /= max(list(color_dict.values()))
+                color_dict['b'] /= max(list(color_dict.values()))
+
+            pattern_led_color_list.append(list(color_dict.values()))
+
+        # Update highlighted NA position
+        self.foreground_plot.set_offsets(self.source_list_na[pattern_led_list, :])
+        self.foreground_plot.set_color(pattern_led_color_list)
+
+
+class PositionPlot():
+    def __init__(self, ax, frame_state_list, show_legend=False, pixel_size_um=1, frame_number=0, subframe_time_index=0,
+                 forground_color='y', forground_highlight_color='w', background_color='m', units='mm'):
+        self.ax = ax
+        self.frame_state_list = frame_state_list
+        # Draw initial plot
+        max_x = -1e10
+        max_y = -1e10
+        min_x = 1e10
+        min_y = 1e10
+
+        # First index in segment veriable represents each "segment" of the kernel, second is the sub-indicies (or pixels)
+        self.position_list = []
+        for state_index, state in enumerate(self.frame_state_list):
+            position_list_frame = []
+            for time_point_position_list in state['position']['states']:
+                for position in time_point_position_list:
+                    # Convert all units to um
+                    if units == 'pixels':
+                        position_list_frame.append([position['value']['y'] * pixel_size_um, position['value']['x'] * pixel_size_um])
+                    elif units == 'mm':
+                        position_list_frame.append([position['value']['y'] * 1000., position['value']['x'] * 1000.])
+                    elif units == 'um':
+                        position_list_frame.append([position['value']['y'], position['value']['x']])
                     else:
-                        frame_subset.append(index)
-        self.dataset.frame_mask = frame_subset
+                        raise ValueError('Units %s are unsupported!' % units)
+            self.position_list.append(position_list_frame)
 
-    @property
-    def frame_position_segment_indicies(self):
-        """Returns a list of segment indicies for each frame."""
-        _frame_position_segment_indicies = []
-        for frame_state in self.dataset._frame_state_list:
-            _frame_position_segment_indicies.append(frame_state['position']['common']['linear_segment_index'])
-        return _frame_position_segment_indicies
+        for positon_frame in self.position_list:
+            positon_frame_np = np.asarray(positon_frame)
+            ax.plot(positon_frame_np[:, 1], positon_frame_np[:, 0], color=background_color,
+                    linestyle='-', linewidth=2)
 
-    @property
-    def position_segment_indicies_full(self):
-        """Returns all segment indicies which are in the dataset (one per segment, NOT one per frame)."""
-        _position_segment_indicies_full = []
-        for frame_state in self.dataset._frame_state_list:
-            if frame_state['position']['common']['linear_segment_index'] not in _position_segment_indicies_full:
-                _position_segment_indicies_full.append(frame_state['position']['common']['linear_segment_index'])
-        return _position_segment_indicies_full
+            max_x = max(max_x, np.max(positon_frame_np[:, 1]))
+            min_x = min(min_x, np.min(positon_frame_np[:, 1]))
+            max_y = max(max_y, np.max(positon_frame_np[:, 0]))
+            min_y = min(min_y, np.min(positon_frame_np[:, 0]))
 
-    def normalize(self, force=False, debug=False):
-        if 'normalization' not in self.dataset.metadata.calibration or force:
-            # Calculation normalization vectors
-            from libwallerlab.projects.motiondeblur.recon import normalize_measurements
-            (frame_normalization_list_y, frame_normalization_list_x) = normalize_measurements(self.dataset, debug=debug)
+        mean_x = (max_x + min_x) / 2
+        mean_y = (max_y + min_y) / 2
 
-            # Convert to numpy for saving
-            _frame_normalization_list_y = [yp.changeBackend(norm, 'numpy').tolist() for norm in frame_normalization_list_y]
-            _frame_normalization_list_x = [yp.changeBackend(norm, 'numpy').tolist() for norm in frame_normalization_list_x]
+        # Create foreground plot
+        positon_frame_np = np.asarray(self.position_list[frame_number])
+        self.foreground_plot, = ax.plot(positon_frame_np[:, 1], positon_frame_np[:, 0], color=forground_color, linestyle='-', linewidth=2)
 
-            # Save in metadata
-            self.dataset.metadata.calibration['normalization'] = {'frame_normalization_x': _frame_normalization_list_x,
-                                                                  'frame_normalization_y': _frame_normalization_list_y}
-            # Save calibration file
-            self.dataset.saveCalibration()
+        # Create foreground highlight plot
+        # self.foreground_highlight_plot, = ax.plot(positon_frame_np[subframe_time_index:subframe_time_index+1, 1], positon_frame_np[subframe_time_index:subframe_time_index+1, 0], color='r', linestyle='-', linewidth=2)
 
-    def register(self, force=False, segment_offset=(0, 0), frame_offset=0,
-                 blur_axis=1, frame_registration_mode='xc', debug=False,
-                 segment_registration_mode='xc', write_file=True):
+        self.foreground_highlight_plot = ax.scatter(positon_frame_np[subframe_time_index, 1], positon_frame_np[subframe_time_index, 0], color='w')
 
-        if 'registration' not in self.dataset.metadata.calibration or force:
+        plot_size = 1.1 * max(max_x - min_x, max_y - min_y) / 2
+        ax.set_xlim(mean_x + np.array([-plot_size, plot_size]))
+        ax.set_ylim(mean_y + np.array([-plot_size, plot_size]))
 
-            # Assign all segments
-            self.dataset.motiondeblur.position_segment_indicies = self.dataset.motiondeblur.position_segment_indicies_full
+        ax.set_xlabel('Position X (um)')
+        ax.set_ylabel('Position Y (um)')
+        ax.invert_yaxis()
 
-            # Pre-compute indicies for speed
-            frame_segment_list = self.dataset.motiondeblur.frame_segment_list
-            frame_segment_direction_list = self.dataset.motiondeblur.frame_segment_direction_list
+    def update(self, frame_number, subframe_time_index=0):
+        frame_number = int(frame_number)
+        subframe_time_index = int(subframe_time_index)
+        positon_frame_np = np.asarray(self.position_list[frame_number])
+        self.foreground_plot.set_xdata(positon_frame_np[:, 1])
+        self.foreground_plot.set_ydata(positon_frame_np[:, 0])
 
-            # Apply pre-computed offset
-            frame_offset_list = []
-            for frame_index in range(len(self.dataset.frame_mask)):
+        self.foreground_highlight_plot.set_offsets([positon_frame_np[subframe_time_index, 1], positon_frame_np[subframe_time_index, 0]])
+        print(positon_frame_np[subframe_time_index, :])
 
-                # Get segment index and direction
-                segment_direction_is_left_right = frame_segment_direction_list[frame_index][1] > 0
+        self.ax.set_title('XY Position')
 
-                # Get index of frame in this segment
-                frame_segment_index = len([segment for segment in frame_segment_list[:frame_index] if segment == frame_segment_list[frame_index]])
 
-                # Get index of current segment
-                segment_index = frame_segment_list[frame_index]
+class ImagePlot():
+    def __init__(self, ax, frame_list, cmap='gray', contrast='global',
+                 pixel_size_um=None, colorbar=True, **kwargs):
 
-                # Apply frame dependent offset
-                _offset_frame = [0, 0]
-                _offset_frame[blur_axis] = frame_segment_index * frame_offset
-                if not segment_direction_is_left_right:
-                    _offset_frame[blur_axis] *= -1
+        from matplotlib import pyplot as plt
+        from matplotlib_scalebar.scalebar import ScaleBar
 
-                # Apply segment dependent offset
-                _offset_segment = list(segment_offset)
-                if segment_direction_is_left_right:
-                    for ax in range(len(_offset_segment)):
-                        if ax is blur_axis:
-                            _offset_segment[ax] *= -1
-                        else:
-                            _offset_segment[ax] *= segment_index
+        # Store frame list
+        self.frame_list = frame_list
 
-                # Combine offsets
-                offset = [_offset_frame[i] + _offset_segment[i] for i in range(2)]
+        # Store axis
+        self.ax = ax
 
-                # Append to list
-                frame_offset_list.append(offset)
+        # Calculate image bounds
+        vmin_global = min([np.min(frame) for frame in frame_list])
+        vmax_global = max([np.max(frame) for frame in frame_list])
 
-            # Apply registration
-            if frame_registration_mode is not None:
+        # Determine vmax and vmin
+        if contrast == 'global':
+            vmin, vmax = vmin_global, vmax_global
+        else:
+            vmin, vmax = np.min(self.frame_list[0]), np.max(self.frame_list[0])
 
-                # Register frames within segments
-                for segment_index in self.dataset.motiondeblur.position_segment_indicies_full:
-                    self.dataset.motiondeblur.position_segment_indicies = [segment_index]
+        # Plot first image
+        self.image_plot = ax.imshow(self.frame_list[0], cmap=cmap,
+                                    vmin=vmin, vmax=vmax, **kwargs)
 
-                    # Get frame ROI list
-                    roi_list = self.dataset.motiondeblur.roi_list
+        if pixel_size_um is not None:
+            scalebar = ScaleBar(pixel_size_um, units="um") # 1 pixel = 0.2 1/cm
+            ax.add_artist(scalebar)
 
-                    # Get offsets for this segment
-                    frame_offset_list_segment = [frame_offset_list[index] for index in self.dataset.frame_mask]
+        self.ax.set_aspect(1.)
+        self.ax.set_title("Frame %d / %d" % (0, len(frame_list)))
 
-                    # Apply frame offsets from previous steps
-                    for roi, offset in zip(roi_list, frame_offset_list_segment):
-                        roi += offset
+        # Turn off axis
+        plt.axis('off')
 
-                    # Perform registration
-                    from libwallerlab.projects.motiondeblur.recon import register_roi_list
-                    frame_offset_list_segment = register_roi_list(self.dataset.frame_list,
-                                                                  roi_list,
-                                                                  debug=debug,
-                                                                  tolerance=(1000, 1000),
-                                                                  method=frame_registration_mode,
-                                                                  force_2d=False,
-                                                                  axis=1)
+        # Draw colorbar, if desired
+        if colorbar:
+            self.image_colorbar = plt.colorbar(self.image_plot, ax=ax)
 
-                    # Apply correction to frame list
-                    for index, frame_index in enumerate(self.dataset.frame_mask):
-                        for i in range(len(frame_offset_list[frame_index])):
-                            frame_offset_list[frame_index][i] += frame_offset_list_segment[index][i]
-
-            if segment_registration_mode is not None:
-                from ndoperators import VecStack, Segmentation
-                from libwallerlab.projects.motiondeblur.recon import alignRoiListToOrigin, register_roi_list
-                stitched_segment_list, stitched_segment_roi_list = [], []
-                # Stitch segments
-                for segment_index in self.dataset.motiondeblur.position_segment_indicies_full:
-                    self.dataset.motiondeblur.position_segment_indicies = [segment_index]
-
-                    # Get frame ROI list
-                    roi_list = self.dataset.motiondeblur.roi_list
-
-                    # Get offsets for this segment
-                    frame_offset_list_segment = [frame_offset_list[index] for index in self.dataset.frame_mask]
-
-                    # Apply frame offsets from previous steps
-                    for roi, offset in zip(roi_list, frame_offset_list_segment):
-                        roi += offset
-
-                    # Determine segment ROI
-                    stitched_segment_roi_list.append(sum(roi_list))
-
-                    # Align ROI list to origin
-                    alignRoiListToOrigin(roi_list)
-
-                    # Create segmentation operator
-                    G = Segmentation(roi_list)
-
-                    # Get measurement list
-                    y = yp.astype(VecStack(self.dataset.frame_list), G.dtype)
-
-                    # Append to list
-                    stitched_segment_list.append(G.inv * y)
-
-                # Register stitched segments
-                frame_offset_list_segment = register_roi_list(stitched_segment_list,
-                                                              stitched_segment_roi_list,
-                                                              debug=debug,
-                                                              tolerance=(200, 200),
-                                                              method=segment_registration_mode)
-
-                # Apply registration to all frames
-                self.dataset.motiondeblur.position_segment_indicies = self.dataset.motiondeblur.position_segment_indicies_full
-
-                # Apply offset to frames
-                for frame_index in range(self.dataset.shape[0]):
-
-                    # Get segment index
-                    segment_index = self.dataset.motiondeblur.frame_segment_list[frame_index]
-
-                    # Apply offset
-                    for i in range(len(frame_offset_list[frame_index])):
-                        frame_offset_list[frame_index][i] += frame_offset_list_segment[segment_index][i]
-
-            # Set updated values in metadata
-            self.dataset.metadata.calibration['registration'] = {'frame_offsets': frame_offset_list,
-                                                                 'segment_offset': segment_offset,  # For debugging
-                                                                 'frame_offset': frame_offset}      # For debugging
-
-            # Save calibration file
-            if write_file:
-                self.dataset.saveCalibration()
+    def update(self, val):
+        frame_index = int(val)
+        self.image_plot.set_data(self.frame_list[frame_index])
+        self.ax.set_title("Frame %d / %d" % (val, len(self.frame_list)))

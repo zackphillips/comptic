@@ -39,7 +39,8 @@ def otf(shape, camera_pixel_size, illumination_wavelength, objective_numerical_a
         return yp.fft.ifftshift(otf)
 
 
-def pupil(shape, camera_pixel_size=6.5e-6, objective_magnification=10, system_magnification=1.0, illumination_wavelength=0.53e-6,
+def pupil(shape, camera_pixel_size=6.5e-6, objective_magnification=10, system_magnification=1.0,
+          illumination_wavelength=0.53e-6,
           objective_numerical_aperture=0.25, center=True, dtype=None, backend=None, **kwargs):
     """
     Creates a biobjective_numerical_aperturery pupil function

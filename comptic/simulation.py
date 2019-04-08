@@ -71,14 +71,14 @@ def _loadImage(image_label, shape, dtype=None, backend=None, **kwargs):
         # Perform resize operation
         image = resize(image, shape, mode=kwargs.get('reshape_mode', 'constant'),
                        preserve_range=True, anti_aliasing=kwargs.get('anti_aliasing',
-                       True)).astype(np.float)
-    return image
-    #return yp.cast(image, dtype, backend)
+                       False)).astype(np.float)
+
+    return yp.cast(image, dtype, backend)
 
 def object(absorption, shape=None, phase=None, **kwargs):
     return testObject(absorption, shape, phase, **kwargs)
 
-def testObject(absorption, shape=None, phase=None, dtype=None, backend=None, **kwargs):
+def testObject(absorption, shape=None, phase=None, invert=False, invert_phase=False, dtype=None, backend=None, **kwargs):
 
     # Load absorption image
     test_object = _loadImage(absorption, shape, dtype, backend, **kwargs)
@@ -87,8 +87,12 @@ def testObject(absorption, shape=None, phase=None, dtype=None, backend=None, **k
     test_object -= yp.min(test_object)
     test_object /= yp.max(test_object)
 
+    # invert if requested
+    if invert:
+        test_object = 1 - test_object
+
     # Apply correct range to absorption
-    absorption_max, absorption_min = kwargs.get('absorption_max', 1.1),  kwargs.get('absorption_min', 0.9)
+    absorption_max, absorption_min = kwargs.get('max_value', 1.1),  kwargs.get('min_value', 0.9)
     test_object *= (absorption_max - absorption_min)
     test_object += absorption_min
 
@@ -97,19 +101,25 @@ def testObject(absorption, shape=None, phase=None, dtype=None, backend=None, **k
         # Load phase image
         phase = _loadImage(phase, shape, **kwargs)
 
+        # invert if requested
+        if invert_phase:
+            phase = 1 - phase
+
         # Normalize
         phase -= yp.min(phase)
         phase /= yp.max(phase)
 
         # Apply correct range to absorption
-        phase_max, phase_min = kwargs.get('phase_max', 1),  kwargs.get('phase_min', 0)
+        phase_max, phase_min = kwargs.get('max_value_phase', 0),  kwargs.get('min_value_phase', 1)
         phase *= (phase_max - phase_min)
         phase += phase_min
 
         # Add phase to test_object
-        test_object = test_object * yp.exp(1j * yp.astype(phase, yp.getDatatype(test_object)))
+        test_object = yp.astype(test_object, 'complex32')
+        test_object *= yp.exp(1j * yp.astype(yp.real(phase), yp.getDatatype(test_object)))
 
-    return test_object
+    # Cast to correct dtype and backend
+    return yp.cast(test_object, dtype, backend)
 
 
 def brain(shape=None, **kwargs):
@@ -117,7 +127,11 @@ def brain(shape=None, **kwargs):
 
 
 def ucb(shape=(512, 512), **kwargs):
-    return testObject('ucblogo', shape, phase='ucbseal', **kwargs)
+    return testObject('ucblogo', shape, phase='ucbseal', invert_phase=True, **kwargs)
+
+
+def california(shape=None, **kwargs):
+    return testObject('california', shape, phase=None, **kwargs)
 
 
 def cells(shape=(512, 512), **kwargs):

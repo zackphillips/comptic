@@ -14,5 +14,6 @@
     "cat" : {"filename" : "chelsea.tiff", "source" : "http://scikit-image.org/docs/dev/api/skimage.data.html#skimage.data.chelsea"},
     "checkerboard" : {"filename" : "checkerboard.tiff", "source" : "http://scikit-image.org/docs/dev/api/skimage.data.html#skimage.data.checkerboard"},
     "coffee" : {"filename" : "coffee.tiff", "source" : "http://scikit-image.org/docs/dev/api/skimage.data.html#skimage.data.coffee"},
+    "california": {"filename": "california.png", "source": "UC Berkeley Athletics"},
     "brainstrip": {"filename": "brainstrip.jpg", "source": "Zack Phillips / Waller Lab"}
 }

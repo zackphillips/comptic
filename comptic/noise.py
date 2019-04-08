@@ -1,6 +1,7 @@
 import numpy as np
 import llops as yp
 from llops.decorators import real_valued_function, numpy_function
+import copy
 
 valid_noise_models = ['gaussian', 'poisson', 'saltandpepper', 'speckle']
 
@@ -78,3 +79,30 @@ def cnr(signal, noise_roi=None, signal_roi=None):
     signal_std = yp.std(signal) if noise_roi is None else np.std(signal[noise_roi.slice])
 
     return (signal_contrast / signal_std)
+
+
+def dnfFromConvolutionKernel(h):
+    """Calculate the deconvolution noise factor (DNF) of N-dimensional
+       convolution operator, given it's kernel."""
+    if len(h) == 0:
+        return 0
+    else:
+        # Normalize
+        h = copy.deepcopy(h) / yp.scalar(yp.sum(h))
+
+        # Take fourier transform intensity
+        h_fft = yp.Ft(h)
+        sigma_h = yp.abs(h_fft) ** 2
+
+        # Calculate DNF
+        return np.sqrt(1 / len(h) * np.sum(1 / sigma_h))
+
+
+def calcCondNumFromKernel(x):
+    if len(x) == 0:
+        return 0
+    else:
+        # x = x / np.sum(x)
+        x_fft = np.fft.fft(x)
+        sigma_x = np.abs(x_fft)
+        return np.max(sigma_x) / np.min(sigma_x)
