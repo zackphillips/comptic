@@ -18,6 +18,7 @@ import numpy as np
 import json, datetime, glob, tifffile, os, copy
 from llops.display import objToString, Color
 import llops as yp
+from .metadata import Metadata
 
 VERSION = 0.3
 
@@ -116,9 +117,6 @@ class Dataset():
 
         # Initialize frame subsampling lists
         self._position_segment_indicies = []
-
-        # See if any reconstrucitons exist
-        self.reconstructions = Reconstructions(self)
 
         # Ground truth
         self.ground_truth = None

@@ -1,6 +1,6 @@
 import os
 import glob
-from .display import objToString, Color
+from llops.display import objToString, Color
 from llops import Roi
 
 class Metadata():
@@ -24,7 +24,7 @@ class Metadata():
         self.calibration = {}
 
         if from_dict is not None:
-            from .io import loadDictRecursive
+            from .containers import loadDictRecursive
             loadDictRecursive(self, from_dict)
 
     def __str__(self):

@@ -296,6 +296,132 @@ def registerImage(image0, image1, method='xc', axis=None,
     return shifts, trust_ratio
 
 
+def register_roi_list(measurement_list, roi_list, axis=None,
+                      use_overlap_region=True, debug=False,
+                      preprocess_methods=['highpass', 'normalize'],
+                      use_mean_offset=False, replace_untrusted=False,
+                      tolerance=(200, 200), force_2d=False,
+                      energy_ratio_threshold=1.5, method='xc'):
+    """
+    Register a list of overlapping ROIs
+    """
+
+    # Loop over frame indicies
+    offsets = []
+    trust_mask = []
+
+    # Parse and set up axis definition
+    if axis is not None and force_2d:
+        _axis = None
+    else:
+        _axis = axis
+
+    # Loop over frames
+    rois_used = []
+    for frame_index in range(len(measurement_list)):
+
+        # Get ROIs
+        roi_current = roi_list[frame_index]
+        frame_current = measurement_list[frame_index]
+
+        # Determine which rois overlap
+        overlapping_rois = [(index, roi) for (index, roi) in enumerate(rois_used) if roi.overlaps(roi_current)]
+
+        # Loop over overlapping ROIs
+        if len(overlapping_rois) > 0:
+
+            local_offset_list = []
+            for index, overlap_roi in overlapping_rois:
+                # Get overlap regions
+                overlap_current, overlap_prev = yp.roi.getOverlapRegion((frame_current, measurement_list[index]),
+                                                                        (roi_current, roi_list[index]))
+
+                # Perform registration
+                _local_offset, _trust_metric = registerImage(overlap_current,
+                                                             overlap_prev,
+                                                             axis=_axis,
+                                                             method=method,
+                                                             preprocess_methods=preprocess_methods,
+                                                             pad_factor=1.5,
+                                                             pad_type=0,
+                                                             energy_ratio_threshold=energy_ratio_threshold,
+                                                             sigma=0.1,
+                                                             debug=False)
+
+                # Deal with axis definitions
+                if axis is not None and force_2d:
+                    local_offset = [0] * len(_local_offset)
+                    local_offset[axis] = _local_offset[axis]
+                else:
+                    local_offset = _local_offset
+
+                # Filter to tolerance
+                for ax in range(len(local_offset)):
+                    if abs(local_offset[ax]) > tolerance[ax]:
+                        local_offset[ax] = 0
+                # local_offset = np.asarray([int(min(local_offset[i], tolerance[i])) for i in range(len(local_offset))])
+                # local_offset = np.asarray([int(max(local_offset[i], -tolerance[i])) for i in range(len(local_offset))])
+
+                # Append offset to list
+                if _trust_metric > 1.0:
+                    local_offset_list.append(local_offset)
+                    if debug:
+                        print('Registered with trust ratio %g' % _trust_metric)
+                else:
+                    if debug:
+                        print('Did not register with trust ratio %g' % _trust_metric)
+
+            # Append offset to list
+            if len(local_offset_list) > 0:
+                offsets.append(tuple((np.round(yp.mean(np.asarray(local_offset_list), axis=0)[0]).tolist())))
+                trust_mask.append(True)
+            else:
+                offsets.append((0, 0))
+                trust_mask.append(False)
+
+        else:
+            offsets.append((0, 0))
+            trust_mask.append(True)
+
+        # Store thir ROI in rois_used
+        rois_used.append(roi_current)
+
+    # Convert offsets to array and reverse diretion
+    offsets = -1 * np.array(offsets)
+
+    if not any(trust_mask):
+        print('WARNING: Did not find any good registration values! Returning zero offset.')
+        offsets = [np.asarray([0, 0])] * len(offsets)
+    else:
+        # Take mean of offsets if desired
+        if use_mean_offset:
+            # This flag sets all measurements to the mean of trusted registration
+            offsets = np.asarray(offsets)
+            trust_mask = np.asarray(trust_mask)
+            offsets[:, 0] = np.mean(offsets[trust_mask, 0])
+            offsets[:, 1] = np.mean(offsets[trust_mask, 1])
+            offsets = offsets.tolist()
+        elif replace_untrusted:
+            # This flag replaces untrusted measurements with the mean of all trusted registrations
+            offsets = np.asarray(offsets)
+            trust_mask = np.asarray(trust_mask)
+            trust_mask_inv = np.invert(trust_mask)
+            offsets[trust_mask_inv, 0] = np.round(np.mean(offsets[trust_mask, 0]))
+            offsets[trust_mask_inv, 1] = np.round(np.mean(offsets[trust_mask, 1]))
+            offsets = offsets.tolist()
+
+    # Convert to numpy array
+    offsets = np.asarray(offsets)
+
+    # Determine aggrigate offsets
+    aggrigate_offsets = [offsets[0]]
+    for offset_index in range(len(offsets) - 1):
+        aggrigate_offsets.append(sum(offsets[slice(0, offset_index + 2)]).astype(np.int).tolist())
+
+    # Return the recovered offsets
+    return aggrigate_offsets
+
+
 def register_translation(src_image, target_image, upsample_factor=1,
                          energy_ratio_threshold=2, space="real"):
     """
