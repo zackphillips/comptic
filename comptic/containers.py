@@ -19,6 +19,8 @@ import json, datetime, glob, tifffile, os, copy
 from llops.display import objToString, Color
 import llops as yp
 from .metadata import Metadata
+from comptic.camera import demosaic
+
 
 VERSION = 0.3
 
@@ -106,6 +108,7 @@ class Dataset():
         # Background, containing artifacts due to system such as illumination
         # and dust on optical elements
         self.background = None
+        # Decide whether we need to perform background removal
         self.divide_background = divide_background
 
         # Dark current, which captures the signal when there is no illumination
@@ -120,9 +123,6 @@ class Dataset():
 
         # Ground truth
         self.ground_truth = None
-
-        # Decide whether we need to perform background removal
-        self.divide_background = divide_background
 
         # Median filter parameters
         self.median_filter_threshold = median_filter_threshold
