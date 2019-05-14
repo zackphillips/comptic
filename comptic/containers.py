@@ -117,10 +117,7 @@ class Dataset():
 
         # Define version
         self.version = VERSION
-
-        # Initialize frame subsampling lists
-        self._position_segment_indicies = []
-
+        
         # Ground truth
         self.ground_truth = None
 
