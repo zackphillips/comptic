@@ -40,8 +40,7 @@ def otf(shape, camera_pixel_size, illumination_wavelength, objective_numerical_a
 
 
 def pupil(shape, camera_pixel_size=6.5e-6, objective_magnification=10, system_magnification=1.0,
-          illumination_wavelength=0.53e-6,
-          objective_numerical_aperture=0.25, center=True, dtype=None, backend=None, **kwargs):
+          illumination_wavelength=0.53e-6, objective_numerical_aperture=0.25, center=True, dtype=None, backend=None, **kwargs):
     """
     Creates a biobjective_numerical_aperturery pupil function
     :param shape: :class:`list, tuple, np.array`
@@ -67,7 +66,7 @@ def pupil(shape, camera_pixel_size=6.5e-6, objective_magnification=10, system_ma
 
     # Generate pupil
     pupil_radius = objective_numerical_aperture / illumination_wavelength
-    pupil = np.asarray((fxlin ** 2 + fylin ** 2) <= pupil_radius ** 2)
+    pupil = np.asarray((fxlin ** 2 + fylin ** 2) <= pupil_radius ** 2).astype(np.float)
 
     # Convert to correct dtype and backend
     pupil = yp.cast(pupil, dtype, backend)
