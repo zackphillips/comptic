@@ -11,5 +11,6 @@ setup( name             = 'comptic'
      , license          = 'BSD'
      , packages         = find_packages()
      , include_package_data = True
+     , package_data={'': ['*.png', '*.jpg', '*.jpeg', '*.tif', '*.tiff', '*.json']}
      , install_requires = ['planar', 'sympy', 'numexpr', 'contexttimer', 'imageio', 'matplotlib_scalebar', 'tifffile', 'numpy', 'scipy', 'scikit-image', 'planar']
      )

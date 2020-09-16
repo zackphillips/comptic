@@ -17,7 +17,6 @@ import imageio
 import json
 import numpy as np
 import os
-from scipy.misc import imresize
 from skimage.transform import resize
 import llops as yp
 
@@ -25,7 +24,7 @@ import llops as yp
 simulation_shape_default = (256, 256)
 
 # Default image directory (relative path)
-test_images_directory = os.path.join(os.path.abspath(os.path.dirname(__file__)), '../resources/testimages')
+test_images_directory = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'resources/test_images')
 
 # Load image dictionary
 with open(test_images_directory + '/index.json') as f:

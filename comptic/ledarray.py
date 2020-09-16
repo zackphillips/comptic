@@ -18,7 +18,7 @@ import os
 import json
 
 # Default image directory (relative path)
-led_position_json_filename = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'led_positions.json')
+led_position_json_filename = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'resources/led_positions.json')
 
 # Load image dictionary
 with open(led_position_json_filename) as f:
