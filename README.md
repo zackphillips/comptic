@@ -2,7 +2,7 @@
 ***Work in progress - API may change without warning***
 
 ## Requirements
-numpy, scipy, [llops](http://www.github.com/zfphil/llops)
+numpy, scipy, [llops](http://www.github.com/zfphil/llops) (included as submodule)
 
 ## Installation
 ```shell
@@ -12,7 +12,7 @@ python setup.py build
 python setup.py install
 ```
 
-## Submodule List
+## Module List
 - ***comptic.camera***: Camera-related tools for demosaicing, etc.
 - ***comptic.containers***: Data structures for datasets and metadata
 - ***comptic.dataset***: [Depreciated]
@@ -27,6 +27,7 @@ python setup.py install
 - ***comptic.simulation***: Tools for simulating objects
 - ***comptic.transformation***: Tools for applying transformations to Images
 - ***comptic.wotf***: Tools for generating weak-object transfer functions
+- ***comptic.dpc***: Tools for DPC inversion
 
 ## License
 BSD 3-clause
