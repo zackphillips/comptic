@@ -5,6 +5,12 @@
 numpy, scipy, [llops](http://www.github.com/zfphil/llops) (included as submodule)
 
 ## Installation
+The easy way:
+```shell
+pip install https://www.github.com/zfphil/comptic
+```
+
+The hard way:
 ```shell
 git clone https://www.github.com/zfphil/comptic
 cd illuminate_controller
@@ -26,8 +32,8 @@ python setup.py install
 - ***comptic.registration***: Tools for image registration
 - ***comptic.simulation***: Tools for simulating objects
 - ***comptic.transformation***: Tools for applying transformations to Images
-- ***comptic.wotf***: Tools for generating weak-object transfer functions
 - ***comptic.dpc***: Tools for DPC inversion
+- ***comptic.dpc***: Tools for Fourier Ptychography
 
 ## License
-BSD 3-clause
+BSD 3-Clause

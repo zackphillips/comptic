@@ -1,6 +1,5 @@
 from . import prop
 from . import imaging
-from . import wotf
 from . import ledarray
 from . import noise
 from . import ransac
@@ -11,3 +10,4 @@ from . import camera
 from . import containers
 from . import systems
 from . import dpc
+from . import fpm
