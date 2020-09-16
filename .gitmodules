@@ -1,0 +1,3 @@
+[submodule "submodules/llops"]
+	path = submodules/llops
+	url = https://github.com/zfphil/llops.git
