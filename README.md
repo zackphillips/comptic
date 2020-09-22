@@ -1,4 +1,4 @@
-# comptic: Computational Optical Imaging support library
+# comptic: Computational Optical Imaging Support library
 ***Work in progress - API may change without warning***
 
 ## Requirements
@@ -8,20 +8,18 @@ numpy, scipy, [llops](http://www.github.com/zfphil/llops) (included as submodule
 The easy way:
 ```shell
 pip install https://www.github.com/zfphil/comptic
-
 ```
 
-The hard way:
+The developer way:
 ```shell
 git clone https://www.github.com/zfphil/comptic
 cd comptic
-python setup.py install
+python setup.py develop
 ```
 
 ## Module List
 - ***comptic.camera***: Camera-related tools for demosaicing, etc.
 - ***comptic.containers***: Data structures for datasets and metadata
-- ***comptic.dataset***: [Depreciated]
 - ***comptic.error***: Error metric functions
 - ***comptic.imaging***: Imaging related functions (such as pupil and OTF generation)
 - ***comptic.ledarray***: Tools for generating LED array positions
@@ -33,7 +31,7 @@ python setup.py install
 - ***comptic.simulation***: Tools for simulating objects
 - ***comptic.transformation***: Tools for applying transformations to Images
 - ***comptic.dpc***: Tools for DPC inversion
-- ***comptic.dpc***: Tools for Fourier Ptychography
+- ***comptic.fpm***: Tools for Fourier Ptychography
 
 ## License
 BSD 3-Clause
