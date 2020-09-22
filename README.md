@@ -8,13 +8,13 @@ numpy, scipy, [llops](http://www.github.com/zfphil/llops) (included as submodule
 The easy way:
 ```shell
 pip install https://www.github.com/zfphil/comptic
+
 ```
 
 The hard way:
 ```shell
 git clone https://www.github.com/zfphil/comptic
-cd illuminate_controller
-python setup.py build
+cd comptic
 python setup.py install
 ```
 
