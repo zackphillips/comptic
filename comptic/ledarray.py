@@ -66,14 +66,14 @@ def getPositions(device_name):
 def cartToNa(point_list_cart, z_offset=0):
     """Function which converts a list of cartesian points to numerical aperture (NA)
 
-    Args:
+    Args:cd 
         point_list_cart: List of (x,y,z) positions relative to the sample (origin)
         z_offset : Optional, offset of LED array in z, mm
 
     Returns:
         A 2D numpy array where the first dimension is the number of LEDs loaded and the second is (Na_x, NA_y)
     """
-    point_list_cart = np.asarray(point_list_cart) if np.ndim(point_list_cart) is 2 else np.asarray([point_list_cart])
+    point_list_cart = np.asarray(point_list_cart) if np.ndim(point_list_cart) == 2 else np.asarray([point_list_cart])
     yz = np.sqrt(point_list_cart[:, 1] ** 2 + (point_list_cart[:, 2] + z_offset) ** 2)
     xz = np.sqrt(point_list_cart[:, 0] ** 2 + (point_list_cart[:, 2] + z_offset) ** 2)
 
