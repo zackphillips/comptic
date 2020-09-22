@@ -22,11 +22,15 @@ sub_mods = [x for x in bash_output.decode("utf-8").split("\n") if x != '']
 for sub_mod in sub_mods:
      submod_setup_path = os.path.join(os.getcwd(), sub_mod, "setup.py")
      if os.path.exists(submod_setup_path) and (current_directory != submod_setup_path):
+
+          # Install sibmodule if it hasn't yet been cloned
+          if len(os.listdir(os.path.dirname(submod_setup_path))) == 0:
+               subprocess.call('git submodule init', shell=True)
+               subprocess.call('git submodule update', shell=True)
+
           print("Installing submodule at %s" % submod_setup_path)
           subprocess.call([sys.executable, submod_setup_path, sys.argv[1]])
-     elif len(os.listdir(os.path.dirname(submod_setup_path))) == 0:
-          subprocess.call('git submodule init')
-          subprocess.call('git submodule update')
+
 
 setup(name             = 'comptic',
       version          = __version__,
