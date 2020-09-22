@@ -6,13 +6,14 @@ def genBayerCouplingMatrix(image_stack_rgb, pixel_offsets=(0, 0)):
     """Generate bayer coupling matrix from measurements."""
     bayer_coupling_matrix = np.zeros((4, 3), dtype=image_stack_rgb[0].dtype)
 
+    # Build bayer matrix
     for color_index, frame in enumerate(image_stack_rgb):
         bayer_coupling_matrix[0, color_index] = np.mean(frame[pixel_offsets[0]::2, pixel_offsets[1]::2])
         bayer_coupling_matrix[1, color_index] = np.mean(frame[pixel_offsets[0]::2, pixel_offsets[1] + 1::2])
         bayer_coupling_matrix[2, color_index] = np.mean(frame[pixel_offsets[0] + 1::2, pixel_offsets[1]::2])
         bayer_coupling_matrix[3, color_index] = np.mean(frame[pixel_offsets[0] + 1::2, pixel_offsets[1] + 1::2])
 
-    return(bayer_coupling_matrix)
+    return bayer_coupling_matrix
 
 
 def demosaic(frame,
@@ -39,13 +40,13 @@ def demosaic(frame,
         # Define frame vector
         for bayer_pattern_index in range(4):
             pixel_offsets = (0, 0)
-            if bayer_pattern_index is 3:
+            if bayer_pattern_index == 3:
                 img_sub = frame[pixel_offsets[0]::2, pixel_offsets[1]::2]
-            elif bayer_pattern_index is 1:
+            elif bayer_pattern_index == 1:
                 img_sub = frame[pixel_offsets[0]::2, pixel_offsets[1] + 1::2]
-            elif bayer_pattern_index is 2:
+            elif bayer_pattern_index == 2:
                 img_sub = frame[pixel_offsets[0] + 1::2, pixel_offsets[1]::2]
-            elif bayer_pattern_index is 0:
+            elif bayer_pattern_index == 0:
                 img_sub = frame[pixel_offsets[0] + 1::2, pixel_offsets[1] + 1::2]
             frame_vec[bayer_pattern_index, :] = yp.dcopy(yp.vec(img_sub))
             if debug:

@@ -2,7 +2,7 @@ import copy
 import numpy as np
 import llops as yp
 import matplotlib.pyplot as plt
-from .. import ledarray
+from . import ledarray
 
 # Define system parameters for our system
 _system_params_default = {

@@ -53,7 +53,7 @@ def propKernelFresnelReal(shape, pixel_size, wavelength, prop_distance, RI=1.0, 
     assert len(shape) == 2, "Propigation kernel size should be two dimensional!"
 
     # Parse position input
-    position = (0,0) if (not position or len(position) is not 2) else position
+    position = (0,0) if (not position or len(position) != 2) else position
 
     # Generate coordinate system
     ygrid, xgrid = yp.grid(shape, pixel_size, offset=position)

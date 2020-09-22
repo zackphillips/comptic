@@ -58,7 +58,7 @@ def readMultiPageTiff(file_name, tags_only=False, frame_subset=None):
             printTiffTags(tif)
         else:
             stack = tif.asarray(key=frame_subset)
-            if np.ndim(stack) is not 3:
+            if np.ndim(stack) != 3:
                 return [stack]
             else:
                 return [frame for frame in tif.asarray(key=frame_subset)]
@@ -822,7 +822,7 @@ class Dataset():
                                                    x_start=self.metadata.background.roi[2], x_end=self.metadata.background.roi[3])
 
             # Convert to single-precision floating point if required
-            if yp.getDatatype(self.frame_list[0]) is not 'float32':
+            if yp.getDatatype(self.frame_list[0]) != 'float32':
                 for i in range(len(self.frame_list)):
                     self.frame_list[i] = yp.astype(self.frame_list[i], 'float32')
 
@@ -833,9 +833,9 @@ class Dataset():
                         self.frame_list[0, :, :], 'Select region for background subtraction')
 
                 # Deal with roi being whole image (default case)
-                if self.metadata.background.roi.x_end is -1:
+                if self.metadata.background.roi.x_end == -1:
                     self.metadata.background.roi.x_end = self.frame_list[0].shape[1]
-                if self.metadata.background.roi.y_end is -1:
+                if self.metadata.background.roi.y_end == -1:
                     self.metadata.background.roi.y_end = self.frame_list[0].shape[0]
 
                 #  Generate list of background values
