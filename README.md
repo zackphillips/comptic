@@ -1,5 +1,7 @@
+***Not activly maintained and likely full of bugs - please use only as a reference!***
+
 # comptic: Computational Optical Imaging Support library
-***Work in progress - API may change without warning***
+My personal computational imaging toolbox. 
 
 ## Requirements
 numpy, scipy, [llops](http://www.github.com/zfphil/llops) (included as submodule)
